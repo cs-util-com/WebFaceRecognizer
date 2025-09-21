@@ -1,3 +1,6 @@
+const ORT_VERSION = '1.22.0';
+const CDN_JSDELIVR_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/esm`;
+
 function resolveNavigator(candidate) {
   if (candidate !== undefined) {
     return candidate;
@@ -34,6 +37,33 @@ async function tryWebGpu(dynamicImport, requestAdapter, errors) {
       console.warn('[loadOrt] Failed to import onnxruntime-web/webgpu:', err);
     }
     errors.push(err);
+    // Try CDN fallback URL (jsDelivr)
+    try {
+      const fallbackUrl = `${CDN_JSDELIVR_BASE}/webgpu/ort.webgpu.min.js`;
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[loadOrt] Retrying WebGPU import from jsDelivr:', fallbackUrl);
+      }
+      const ort = await dynamicImport(fallbackUrl);
+      if (typeof requestAdapter === 'function') {
+        try {
+          await requestAdapter();
+          if (typeof console !== 'undefined' && console.info) {
+            console.info('[loadOrt] WebGPU available via jsDelivr; selecting executionProviders=["webgpu"]');
+          }
+          return { ort, executionProviders: ['webgpu'] };
+        } catch (adapterError) {
+          if (typeof console !== 'undefined' && console.warn) {
+            console.warn('[loadOrt] WebGPU adapter request failed (jsDelivr path):', adapterError);
+          }
+          errors.push(adapterError);
+        }
+      }
+    } catch (fallbackErr) {
+      if (typeof console !== 'undefined' && console.warn) {
+        console.warn('[loadOrt] WebGPU import fallback failed:', fallbackErr);
+      }
+      errors.push(fallbackErr);
+    }
   }
   return null;
 }
@@ -67,12 +97,26 @@ async function loadOrtRuntime(options = {}) {
     return { ort, executionProviders: ['wasm'] };
   } catch (err) {
     errors.push(err);
-    const message = errors.map((e) => (e && e.message ? e.message : String(e))).join('; ');
-    const finalMessage = `Failed to load ONNX Runtime Web: ${message}`;
-    if (typeof console !== 'undefined' && console.error) {
-      console.error('[loadOrt] ' + finalMessage, { errors });
+    // Try CDN fallback URL (jsDelivr)
+    try {
+      const fallbackUrl = `${CDN_JSDELIVR_BASE}/ort.min.js`;
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[loadOrt] Retrying WASM import from jsDelivr:', fallbackUrl);
+      }
+      const ort = await dynamicImport(fallbackUrl);
+      if (typeof console !== 'undefined' && console.info) {
+        console.info('[loadOrt] Loaded onnxruntime-web from jsDelivr (WASM); executionProviders=["wasm"]');
+      }
+      return { ort, executionProviders: ['wasm'] };
+    } catch (fallbackErr) {
+      errors.push(fallbackErr);
+      const message = errors.map((e) => (e && e.message ? e.message : String(e))).join('; ');
+      const finalMessage = `Failed to load ONNX Runtime Web: ${message}`;
+      if (typeof console !== 'undefined' && console.error) {
+        console.error('[loadOrt] ' + finalMessage, { errors });
+      }
+      throw new Error(finalMessage);
     }
-    throw new Error(finalMessage);
   }
 }
 
