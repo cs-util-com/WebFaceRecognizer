@@ -65,8 +65,8 @@ Cross-Origin-Embedder-Policy: require-corp
 
 /public  
   /models  
-    arcface\_r100.onnx  
-    scrfd\_2.5g\_kps\_640x640.onnx  
+    arcfaceresnet100-11-int8.onnx  
+    scrfd_2.5g_bnkps.onnx  
   /ort  
     ort-webgpu.esm.min.js (optional)  
     ort-wasm-simd-threaded\*.wasm / \*.jsep.wasm  
@@ -239,6 +239,15 @@ If your INT8 model expects float inputs, keep `embedderInputType=float32` and op
 Caveats:
 - Some quantized ops may not be accelerated by WebGPU; runtime may fall back to WASM EP.
 - Slight accuracy drop vs FP32 is common.
+
+### Execution-provider fallback for the embedder
+
+When WebGPU is available, this app attempts to create the embedder session with executionProviders set to ["webgpu", "wasm"]. If that fails (common with certain INT8 models whose ops aren’t supported by WebGPU), the app automatically retries with ["wasm"] only. You’ll see logs like:
+
+- "[FaceRecognitionApp] Embedder failed with WebGPU; retrying with WASM only: …"
+- Final status: "Loaded models (webgpu)" or "Loaded models (wasm)" depending on which EPs were selected.
+
+This fallback is transparent to callers and avoids startup failures on browsers where the embedder can’t run on WebGPU. Detector session creation remains on the selected provider(s).
 
 8. **Calibrate a threshold**  
    * Capture a handful of positive/negative pairs from your camera and sweep thresholds to choose an operating point.
