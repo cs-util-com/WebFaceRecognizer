@@ -92,15 +92,31 @@ class FaceRecognitionApp {
     if (this.statusElement) {
       this.statusElement.textContent = message;
     }
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[FaceRecognitionApp] status:', message);
+    }
   }
 
   async initialize() {
     this.updateStatus('Loading ONNX Runtime...');
+    if (typeof console !== 'undefined' && console.time) {
+      console.time('[FaceRecognitionApp] initialize');
+      console.time('[FaceRecognitionApp] loadOrt');
+    }
     const { ort, executionProviders } = await this.runtimeLoader();
+    if (typeof console !== 'undefined' && console.timeEnd) {
+      console.timeEnd('[FaceRecognitionApp] loadOrt');
+    }
     this.ort = ort;
     this.executionProviders = executionProviders;
+    if (typeof console !== 'undefined' && console.info) {
+      console.info('[FaceRecognitionApp] ORT ready with providers:', executionProviders);
+    }
     await this.loadModelSessions();
     this.updateStatus(`Loaded models (${executionProviders.join(', ')})`);
+    if (typeof console !== 'undefined' && console.timeEnd) {
+      console.timeEnd('[FaceRecognitionApp] initialize');
+    }
   }
 
   async loadModelSessions() {
@@ -108,13 +124,33 @@ class FaceRecognitionApp {
       throw new Error('ONNX Runtime not loaded');
     }
     const sessionOptions = { executionProviders: this.executionProviders };
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[FaceRecognitionApp] Creating sessions with options:', sessionOptions);
+      console.debug('[FaceRecognitionApp] Detector model URL:', this.detectorModelUrl);
+      console.debug('[FaceRecognitionApp] Embedder model URL:', this.embedderModelUrl);
+    }
+    if (typeof console !== 'undefined' && console.time) {
+      console.time('[FaceRecognitionApp] create detector session');
+    }
     this.detectorSession = await this.ort.InferenceSession.create(this.detectorModelUrl, sessionOptions);
+    if (typeof console !== 'undefined' && console.timeEnd) {
+      console.timeEnd('[FaceRecognitionApp] create detector session');
+    }
+    if (typeof console !== 'undefined' && console.time) {
+      console.time('[FaceRecognitionApp] create embedder session');
+    }
     this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, sessionOptions);
+    if (typeof console !== 'undefined' && console.timeEnd) {
+      console.timeEnd('[FaceRecognitionApp] create embedder session');
+    }
   }
 
   async startCamera(constraints = { video: { width: 1280, height: 720 } }) {
     if (!this.videoElement) {
       throw new Error('Video element is not configured');
+    }
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[FaceRecognitionApp] Starting camera with constraints:', constraints);
     }
     const stream = await navigator.mediaDevices.getUserMedia(constraints);
     this.videoElement.srcObject = stream;
@@ -214,6 +250,9 @@ class FaceRecognitionApp {
     const detections = await this.detectFacesFromCanvas(canvas);
     if (detections.length === 0) {
       throw new Error('No face detected for enrollment');
+    }
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[FaceRecognitionApp] Enrolling id:', id, 'metadata:', metadata);
     }
     const { keypoints } = detections[0];
     const { canvas: aligned } = this.alignFace(canvas, keypoints);
