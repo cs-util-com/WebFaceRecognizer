@@ -153,17 +153,40 @@ class FaceRecognitionApp {
     if (typeof console !== 'undefined' && console.timeEnd) {
       console.timeEnd('[FaceRecognitionApp] create detector session');
     }
+    // Create embedder session with EP-aware fallback: if WebGPU is selected, allow WASM fallback
+    const wantsWebGpu = Array.isArray(this.executionProviders) && this.executionProviders.includes('webgpu');
+    const embedderPrimaryOptions = wantsWebGpu
+      ? { executionProviders: ['webgpu', 'wasm'] }
+      : { executionProviders: this.executionProviders };
+    if (typeof console !== 'undefined' && console.debug) {
+      console.debug('[FaceRecognitionApp] Embedder sessionOptions (primary):', embedderPrimaryOptions);
+    }
     if (typeof console !== 'undefined' && console.time) {
       console.time('[FaceRecognitionApp] create embedder session');
     }
     try {
-      this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, sessionOptions);
+      this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, embedderPrimaryOptions);
     } catch (e) {
-      const hint = `Failed to load embedder model at ${this.embedderModelUrl}. Ensure the file exists and is served from the same origin (e.g., place it under /models).`;
-      throw new Error(e && e.message ? `${hint}\n${e.message}` : hint);
-    }
-    if (typeof console !== 'undefined' && console.timeEnd) {
-      console.timeEnd('[FaceRecognitionApp] create embedder session');
+      if (wantsWebGpu) {
+        // Retry with pure WASM; WebGPU may not support all ops (e.g., quantized INT8 graphs)
+        const embedderWasmOnly = { executionProviders: ['wasm'] };
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[FaceRecognitionApp] Embedder failed with WebGPU; retrying with WASM only:', e && e.message ? e.message : e);
+        }
+        try {
+          this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, embedderWasmOnly);
+        } catch (e2) {
+          const hint = `Failed to load embedder model at ${this.embedderModelUrl}. Ensure the file exists and is served from the same origin (e.g., place it under /models).`;
+          throw new Error(e2 && e2.message ? `${hint}\n${e2.message}` : hint);
+        }
+      } else {
+        const hint = `Failed to load embedder model at ${this.embedderModelUrl}. Ensure the file exists and is served from the same origin (e.g., place it under /models).`;
+        throw new Error(e && e.message ? `${hint}\n${e.message}` : hint);
+      }
+    } finally {
+      if (typeof console !== 'undefined' && console.timeEnd) {
+        console.timeEnd('[FaceRecognitionApp] create embedder session');
+      }
     }
   }
 
