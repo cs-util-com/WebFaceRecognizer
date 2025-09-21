@@ -215,7 +215,7 @@ for (let i=0;i\<512;i++) v\[i\]\*=inv;
    `import * as ort from 'onnxruntime-web/webgpu'; // fallback to 'onnxruntime-web' if needed`  
    `// Optionally set wasm paths if self-hosted under /ort`  
    `// ort.env.wasm.wasmPaths = '/ort/';`  
-   `const scrfd = await ort.InferenceSession.create('/models/scrfd_2.5g_kps_640x640.onnx', {executionProviders:['webgpu']});`  
+  `const scrfd = await ort.InferenceSession.create('/models/scrfd_2.5g_bnkps.onnx', {executionProviders:['webgpu']});`  
   `const arc  = await ort.InferenceSession.create('/models/arcfaceresnet100-11-int8.onnx', {executionProviders:['webgpu']});`
 
 5. **Detect** (SCRFD)  

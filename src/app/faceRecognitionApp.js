@@ -32,7 +32,7 @@ class FaceRecognitionApp {
       statusElement: null,
       runtimeLoader: loadOrtRuntime,
       store: new FaceEmbeddingStore(),
-      detectorModelUrl: '/models/scrfd_2.5g_kps_640x640.onnx',
+  detectorModelUrl: '/models/scrfd_2.5g_bnkps.onnx',
   // Default to INT8 ArcFace model; can be overridden via query params or config
   embedderModelUrl: '/models/arcfaceresnet100-11-int8.onnx',
       detectorInputName: 'input',

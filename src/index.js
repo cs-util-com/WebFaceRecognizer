@@ -99,7 +99,7 @@ async function bootstrapFaceRecognitionApp({ documentRef = document, autoInit = 
   const config = createDefaultAppConfig(documentRef);
 
   // Optional: allow overriding model URLs via query parameters
-  // ?detector=/models/scrfd_2.5g_kps_640x640.onnx&embedder=/models/arcface_r100.onnx
+  // ?detector=/models/scrfd_2.5g_bnkps.onnx&embedder=/models/arcface_r100.onnx
   try {
     const href = (documentRef && documentRef.location && documentRef.location.href) || '';
     const params = new URL(href).searchParams;
