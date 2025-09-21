@@ -138,4 +138,45 @@ describe('loadOrtRuntime', () => {
     expect(result.executionProviders).toEqual(['wasm']);
     expect(result.ort).toBe(wasmModule);
   });
+
+  test('uses CDN WebGPU fallback when direct import fails', async () => {
+    const webgpuModule = { kind: 'webgpu-cdn' };
+    const fallbackUrl = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.webgpu.min.mjs';
+    const importer = jest.fn((specifier) => {
+      if (specifier === 'onnxruntime-web/webgpu') {
+        return Promise.reject(new Error('no webgpu direct'));
+      }
+      if (specifier === fallbackUrl) {
+        return Promise.resolve(webgpuModule);
+      }
+      if (specifier === 'onnxruntime-web') {
+        return Promise.reject(new Error('should not reach wasm import'));
+      }
+      return Promise.reject(new Error('unexpected import'));
+    });
+    const navigatorObj = { gpu: { requestAdapter: jest.fn().mockResolvedValue({}) } };
+    const result = await loadOrtRuntime({ importer, navigatorObj });
+    expect(result.executionProviders).toEqual(['webgpu']);
+    expect(result.ort).toBe(webgpuModule);
+    expect(importer).toHaveBeenCalledWith(fallbackUrl);
+    expect(navigatorObj.gpu.requestAdapter).toHaveBeenCalled();
+  });
+
+  test('uses CDN WASM fallback when main import fails', async () => {
+    const wasmModule = { kind: 'wasm-cdn' };
+    const fallbackUrl = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.min.mjs';
+    const importer = jest.fn((specifier) => {
+      if (specifier === 'onnxruntime-web') {
+        return Promise.reject(new Error('no wasm direct'));
+      }
+      if (specifier === fallbackUrl) {
+        return Promise.resolve(wasmModule);
+      }
+      return Promise.reject(new Error('unexpected import'));
+    });
+    const result = await loadOrtRuntime({ importer, preferWebGPU: false });
+    expect(result.executionProviders).toEqual(['wasm']);
+    expect(result.ort).toBe(wasmModule);
+    expect(importer).toHaveBeenCalledWith(fallbackUrl);
+  });
 });

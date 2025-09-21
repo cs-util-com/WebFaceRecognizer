@@ -1,5 +1,5 @@
 const ORT_VERSION = '1.22.0';
-const CDN_JSDELIVR_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist/esm`;
+const CDN_JSDELIVR_BASE = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ORT_VERSION}/dist`;
 
 function resolveNavigator(candidate) {
   if (candidate !== undefined) {
@@ -39,7 +39,7 @@ async function tryWebGpu(dynamicImport, requestAdapter, errors) {
     errors.push(err);
     // Try CDN fallback URL (jsDelivr)
     try {
-      const fallbackUrl = `${CDN_JSDELIVR_BASE}/webgpu/ort.webgpu.min.js`;
+  const fallbackUrl = `${CDN_JSDELIVR_BASE}/ort.webgpu.min.mjs`;
       if (typeof console !== 'undefined' && console.debug) {
         console.debug('[loadOrt] Retrying WebGPU import from jsDelivr:', fallbackUrl);
       }
@@ -99,7 +99,7 @@ async function loadOrtRuntime(options = {}) {
     errors.push(err);
     // Try CDN fallback URL (jsDelivr)
     try {
-      const fallbackUrl = `${CDN_JSDELIVR_BASE}/ort.min.js`;
+  const fallbackUrl = `${CDN_JSDELIVR_BASE}/ort.min.mjs`;
       if (typeof console !== 'undefined' && console.debug) {
         console.debug('[loadOrt] Retrying WASM import from jsDelivr:', fallbackUrl);
       }
