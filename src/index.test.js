@@ -64,6 +64,16 @@ describe('UI helpers', () => {
     drawDetections(null, [detection]);
   });
 
+  test('drawDetections without matches does not render labels', () => {
+    const canvas = createCanvasStub(50, 50);
+    const detection = { bbox: [5, 5, 20, 20], keypoints: [[6, 6], [7, 7], [8, 8], [9, 9], [10, 10]] };
+    drawDetections(canvas, [detection], [null]);
+    const ctx = canvas.__context;
+    // Should still draw box and keypoints, but no label fillText call
+    expect(ctx.strokeRect).toHaveBeenCalled();
+    expect(ctx.arc).toHaveBeenCalledTimes(5);
+  });
+
   test('renderMatchList populates DOM', () => {
     const list = document.getElementById('results');
     renderMatchList(list, [
@@ -73,6 +83,22 @@ describe('UI helpers', () => {
     expect(list.children).toHaveLength(2);
     expect(list.textContent).toContain('alice');
     renderMatchList(null, []);
+  });
+
+  test('renderMatchList renders unknown entries', () => {
+    const list = document.getElementById('results');
+    renderMatchList(list, [
+      { detection: { bbox: [1, 2, 3, 4] }, match: null },
+    ]);
+    expect(list.textContent).toContain('Unknown face');
+  });
+
+  test('attaches bootstrap to window in browser-like environment', () => {
+    // In jsdom environment, the module should attach bootstrap to window
+    jest.isolateModules(() => {
+      require('./index.js');
+    });
+    expect(typeof window.bootstrapFaceRecognitionApp).toBe('function');
   });
 
   test('bootstrap wires event handlers to the fake app', async () => {
@@ -176,10 +202,78 @@ describe('UI helpers', () => {
     expect(capturedConfig.embedderModelUrl).toBe(embedder);
   });
 
+  test('bootstrap applies only detector override when embedder missing', async () => {
+    const detector = '/models/override-det.onnx';
+    const stubDoc = {
+      getElementById: document.getElementById.bind(document),
+      location: { href: `https://example.test/?detector=${encodeURIComponent(detector)}` },
+    };
+
+    let capturedConfig;
+    global.__createFakeApp = (config) => {
+      capturedConfig = config;
+      return {
+        initialize: jest.fn(),
+        startCamera: jest.fn(),
+        enrollFromCanvas: jest.fn(),
+        identifyFromCanvas: jest.fn(),
+        captureVideoFrame: jest.fn(() => createCanvasStub(10, 10)),
+        updateStatus: jest.fn(),
+      };
+    };
+
+    await bootstrapFaceRecognitionApp({ documentRef: stubDoc, autoInit: false });
+    expect(capturedConfig.detectorModelUrl).toBe(detector);
+    expect(capturedConfig.embedderModelUrl).toBeUndefined();
+  });
+
+  test('bootstrap applies only embedder override when detector missing', async () => {
+    const embedder = '/models/override-emb.onnx';
+    const stubDoc = {
+      getElementById: document.getElementById.bind(document),
+      location: { href: `https://example.test/?embedder=${encodeURIComponent(embedder)}` },
+    };
+
+    let capturedConfig;
+    global.__createFakeApp = (config) => {
+      capturedConfig = config;
+      return {
+        initialize: jest.fn(),
+        startCamera: jest.fn(),
+        enrollFromCanvas: jest.fn(),
+        identifyFromCanvas: jest.fn(),
+        captureVideoFrame: jest.fn(() => createCanvasStub(10, 10)),
+        updateStatus: jest.fn(),
+      };
+    };
+
+    await bootstrapFaceRecognitionApp({ documentRef: stubDoc, autoInit: false });
+    expect(capturedConfig.detectorModelUrl).toBeUndefined();
+    expect(capturedConfig.embedderModelUrl).toBe(embedder);
+  });
+
   test('bootstrap ignores invalid document URL gracefully', async () => {
     const stubDoc = {
       getElementById: document.getElementById.bind(document),
       location: { href: 'not a url' },
+    };
+
+    global.__createFakeApp = () => ({
+      initialize: jest.fn(),
+      startCamera: jest.fn(),
+      enrollFromCanvas: jest.fn(),
+      identifyFromCanvas: jest.fn(),
+      captureVideoFrame: jest.fn(() => createCanvasStub(10, 10)),
+      updateStatus: jest.fn(),
+    });
+
+    await expect(bootstrapFaceRecognitionApp({ documentRef: stubDoc, autoInit: false })).resolves.toBeDefined();
+  });
+
+  test('bootstrap handles missing location on documentRef', async () => {
+    const stubDoc = {
+      getElementById: document.getElementById.bind(document),
+      // no location property
     };
 
     global.__createFakeApp = () => ({

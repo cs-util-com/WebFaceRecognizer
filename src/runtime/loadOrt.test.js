@@ -179,4 +179,51 @@ describe('loadOrtRuntime', () => {
     expect(result.ort).toBe(wasmModule);
     expect(importer).toHaveBeenCalledWith(fallbackUrl);
   });
+
+  test('CDN WebGPU import success but adapter fails, continue to WASM', async () => {
+    const webgpuCdn = { kind: 'webgpu-cdn' };
+    const wasmModule = { kind: 'wasm' };
+    const webgpuUrl = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.webgpu.min.mjs';
+    const importer = jest.fn((specifier) => {
+      if (specifier === 'onnxruntime-web/webgpu') {
+        return Promise.reject(new Error('no direct webgpu'));
+      }
+      if (specifier === webgpuUrl) {
+        return Promise.resolve(webgpuCdn);
+      }
+      if (specifier === 'onnxruntime-web') {
+        return Promise.resolve(wasmModule);
+      }
+      return Promise.reject(new Error('unexpected import'));
+    });
+    const navigatorObj = { gpu: { requestAdapter: jest.fn().mockRejectedValue(new Error('adapter failure')) } };
+    const result = await loadOrtRuntime({ importer, navigatorObj });
+    expect(importer).toHaveBeenCalledWith(webgpuUrl);
+    expect(navigatorObj.gpu.requestAdapter).toHaveBeenCalled();
+    expect(result.executionProviders).toEqual(['wasm']);
+    expect(result.ort).toBe(wasmModule);
+  });
+
+  test('CDN WebGPU import success but no requestAdapter, continue to WASM', async () => {
+    const webgpuCdn = { kind: 'webgpu-cdn' };
+    const wasmModule = { kind: 'wasm' };
+    const webgpuUrl = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/ort.webgpu.min.mjs';
+    const importer = jest.fn((specifier) => {
+      if (specifier === 'onnxruntime-web/webgpu') {
+        return Promise.reject(new Error('no direct webgpu'));
+      }
+      if (specifier === webgpuUrl) {
+        return Promise.resolve(webgpuCdn);
+      }
+      if (specifier === 'onnxruntime-web') {
+        return Promise.resolve(wasmModule);
+      }
+      return Promise.reject(new Error('unexpected import'));
+    });
+    const navigatorObj = { gpu: {} };
+    const result = await loadOrtRuntime({ importer, navigatorObj });
+    expect(importer).toHaveBeenCalledWith(webgpuUrl);
+    expect(result.executionProviders).toEqual(['wasm']);
+    expect(result.ort).toBe(wasmModule);
+  });
 });
