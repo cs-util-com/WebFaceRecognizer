@@ -8,7 +8,7 @@ function createCanvasFactory() {
 
 describe('FaceRecognitionApp embedder EP fallback failure', () => {
   test('throws when both WebGPU and WASM embedder creation fail', async () => {
-    const create = jest.fn(async (url, opts) => {
+    const create = jest.fn(async (url) => {
       // Detector succeeds
       if (url.includes('scrfd')) return {};
       // For embedder, always fail regardless of EP

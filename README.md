@@ -249,6 +249,8 @@ When WebGPU is available, this app attempts to create the embedder session with 
 
 This fallback is transparent to callers and avoids startup failures on browsers where the embedder can’t run on WebGPU. Detector session creation remains on the selected provider(s).
 
+Optimization: To prevent fetching the ArcFace ONNX twice when fallback triggers, the app prefetches the embedder model bytes once and reuses them across both session.create attempts. You can disable this with `prefetchEmbedderModel: false` in `FaceRecognitionApp` options if desired.
+
 8. **Calibrate a threshold**  
    * Capture a handful of positive/negative pairs from your camera and sweep thresholds to choose an operating point.
 

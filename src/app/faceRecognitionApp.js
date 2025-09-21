@@ -49,6 +49,10 @@ class FaceRecognitionApp {
       detectionScoreThreshold: 0.45,
       nmsThreshold: 0.4,
       arcfaceTemplate: ARC_FACE_TEMPLATE,
+      // When WebGPU is selected, creating the embedder session may fall back to WASM.
+      // To avoid downloading the ONNX model twice, we can prefetch the model bytes once
+      // and reuse them for both attempts. This is a no-op if fetch is unavailable.
+      prefetchEmbedderModel: true,
     };
     const config = { ...defaults, ...options };
     const {
@@ -72,6 +76,7 @@ class FaceRecognitionApp {
       detectionScoreThreshold,
       nmsThreshold,
       arcfaceTemplate,
+      prefetchEmbedderModel,
       createCanvas,
     } = config;
 
@@ -95,6 +100,7 @@ class FaceRecognitionApp {
     this.detectionScoreThreshold = detectionScoreThreshold;
     this.nmsThreshold = nmsThreshold;
     this.arcfaceTemplate = arcfaceTemplate;
+    this.prefetchEmbedderModel = prefetchEmbedderModel;
     this.createCanvas = createCanvas || createCanvasFactory(this.document);
     this.captureCanvas = this.createCanvas(detectorInputSize, detectorInputSize);
     this.captureContext = this.captureCanvas.getContext('2d');
@@ -161,11 +167,31 @@ class FaceRecognitionApp {
     if (typeof console !== 'undefined' && console.debug) {
       console.debug('[FaceRecognitionApp] Embedder sessionOptions (primary):', embedderPrimaryOptions);
     }
+
+    // Optionally prefetch embedder model to avoid double network fetch if fallback is triggered
+    let embedderModelSource = this.embedderModelUrl;
+    if (this.prefetchEmbedderModel && typeof fetch === 'function' && typeof this.embedderModelUrl === 'string') {
+      try {
+        if (typeof console !== 'undefined' && console.debug) {
+          console.debug('[FaceRecognitionApp] Prefetching embedder model bytes:', this.embedderModelUrl);
+        }
+        const res = await fetch(this.embedderModelUrl, { cache: 'force-cache' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const buf = await res.arrayBuffer();
+        embedderModelSource = new Uint8Array(buf);
+      } catch (prefetchErr) {
+        if (typeof console !== 'undefined' && console.warn) {
+          console.warn('[FaceRecognitionApp] Embedder prefetch failed; using URL instead:', prefetchErr && prefetchErr.message ? prefetchErr.message : prefetchErr);
+        }
+        // fall back to URL
+        embedderModelSource = this.embedderModelUrl;
+      }
+    }
     if (typeof console !== 'undefined' && console.time) {
       console.time('[FaceRecognitionApp] create embedder session');
     }
     try {
-      this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, embedderPrimaryOptions);
+      this.embedderSession = await this.ort.InferenceSession.create(embedderModelSource, embedderPrimaryOptions);
     } catch (e) {
       if (wantsWebGpu) {
         // Retry with pure WASM; WebGPU may not support all ops (e.g., quantized INT8 graphs)
@@ -174,7 +200,7 @@ class FaceRecognitionApp {
           console.warn('[FaceRecognitionApp] Embedder failed with WebGPU; retrying with WASM only:', e && e.message ? e.message : e);
         }
         try {
-          this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, embedderWasmOnly);
+          this.embedderSession = await this.ort.InferenceSession.create(embedderModelSource, embedderWasmOnly);
         } catch (e2) {
           const hint = `Failed to load embedder model at ${this.embedderModelUrl}. Ensure the file exists and is served from the same origin (e.g., place it under /models).`;
           throw new Error(e2 && e2.message ? `${hint}\n${e2.message}` : hint);

@@ -8,7 +8,7 @@ function createCanvasFactory() {
 
 describe('FaceRecognitionApp embedder creation succeeds on WebGPU path', () => {
   test('creates embedder with ["webgpu","wasm"] without falling back', async () => {
-    const create = jest.fn(async (url, opts) => {
+    const create = jest.fn(async () => {
       return {}; // succeed for both detector and embedder
     });
     const runtimeLoader = async () => ({
