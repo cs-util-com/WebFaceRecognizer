@@ -1,7 +1,7 @@
 {
-  "name": "templatejs",
-  "version": "1.0.0",
-  "description": "TemplateJs is a minimal single-page web app template designed for quick deployment.  It follows an AI-assisted iterative development process:",
+  "name": "web-face-recognizer",
+  "version": "0.1.0",
+  "description": "In-browser face recognition prototype built around ArcFace and SCRFD using ONNX Runtime Web.",
   "main": "index.js",
   "scripts": {
     "test": "jest --coverage --config config/jest.config.js",
@@ -14,9 +14,18 @@
     "check:all": "npm run lint && npm run check:dup && npm run check:cycles && npm run check:boundaries",
     "validate:all": "npm run test && npm run check:all && npm run mutation"
   },
-  "keywords": [],
+  "keywords": [
+    "face-recognition",
+    "onnxruntime-web",
+    "arcface",
+    "scrfd",
+    "webgpu"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "onnxruntime-web": "^1.19.2"
+  },
   "devDependencies": {
     "@babel/core": "^7.27.4",
     "@babel/preset-env": "^7.27.2",
