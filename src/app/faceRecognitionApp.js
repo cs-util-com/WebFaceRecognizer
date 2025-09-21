@@ -323,6 +323,14 @@ class FaceRecognitionApp {
     return results;
   }
 
+  async identifyFromImageBitmap(imageBitmap) {
+    // Convenience: accept ImageBitmap/HTMLImageElement and draw it into a canvas
+    const canvas = this.createCanvas(imageBitmap.width, imageBitmap.height);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(imageBitmap, 0, 0);
+    return this.identifyFromCanvas(canvas);
+  }
+
   async enrollFromCanvas(canvas, id, metadata = {}) {
     const detections = await this.detectFacesFromCanvas(canvas);
     if (detections.length === 0) {

@@ -134,6 +134,7 @@ async function bootstrapFaceRecognitionApp({ documentRef = document, autoInit = 
   const startButton = selectElement(documentRef, 'start');
   const enrollButton = selectElement(documentRef, 'enroll');
   const identifyButton = selectElement(documentRef, 'identify');
+  const uploadInput = selectElement(documentRef, 'upload');
   const resultsList = selectElement(documentRef, 'results');
   const identityInput = selectElement(documentRef, 'identity');
   const overlayCanvas = config.overlayCanvas;
@@ -160,6 +161,34 @@ async function bootstrapFaceRecognitionApp({ documentRef = document, autoInit = 
       await handleIdentify(app, overlayCanvas, resultsList);
     } catch (err) {
       app.updateStatus(err.message);
+    }
+  });
+
+  // Process a single uploaded image from disk
+  uploadInput.addEventListener('change', async (e) => {
+    const file = e.target && e.target.files && e.target.files[0];
+    if (!file) return;
+    try {
+      // Decode image into an ImageBitmap for fast draw
+      const img = await createImageBitmap(file);
+      // Draw into a working canvas sized to the image
+      const workCanvas = documentRef.createElement('canvas');
+      workCanvas.width = img.width;
+      workCanvas.height = img.height;
+      const ctx = workCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      // Resize overlay to match and run identify on this static frame
+      overlayCanvas.width = workCanvas.width;
+      overlayCanvas.height = workCanvas.height;
+      const matches = await app.identifyFromCanvas(workCanvas);
+      drawDetections(overlayCanvas, matches.map((m) => m.detection), matches);
+      renderMatchList(resultsList, matches);
+      app.updateStatus(`Processed uploaded image (${workCanvas.width}×${workCanvas.height})`);
+    } catch (err) {
+      app.updateStatus(err && err.message ? err.message : String(err));
+    } finally {
+      // reset so selecting the same file again re-triggers change
+      e.target.value = '';
     }
   });
 

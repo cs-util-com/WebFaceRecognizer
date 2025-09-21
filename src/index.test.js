@@ -36,6 +36,7 @@ describe('UI helpers', () => {
       <button id="start"></button>
       <button id="identify"></button>
       <button id="enroll"></button>
+      <input id="upload" type="file" />
       <input id="identity" />
       <ul id="results"></ul>
     `;
@@ -114,6 +115,8 @@ describe('UI helpers', () => {
     const startListener = jest.spyOn(startButton, 'addEventListener');
     const enrollListener = jest.spyOn(enrollButton, 'addEventListener');
     const identifyListener = jest.spyOn(identifyButton, 'addEventListener');
+  const uploadInput = document.getElementById('upload');
+  const uploadListener = jest.spyOn(uploadInput, 'addEventListener');
 
     const identifyResult = [{
       detection: { bbox: [0, 0, 20, 20], keypoints: [[1, 1], [2, 2], [3, 3], [4, 4], [5, 5]] },
@@ -136,6 +139,7 @@ describe('UI helpers', () => {
     const startHandler = startListener.mock.calls[0][1];
     const enrollHandler = enrollListener.mock.calls[0][1];
     const identifyHandler = identifyListener.mock.calls[0][1];
+  const uploadHandler = uploadListener.mock.calls[0][1];
 
     fakeInstance.startCamera.mockRejectedValueOnce(new Error('camera fail'));
     await startHandler(new Event('click'));
@@ -161,6 +165,21 @@ describe('UI helpers', () => {
     expect(fakeInstance.identifyFromCanvas).toHaveBeenCalledWith(frameCanvas);
     const list = document.getElementById('results');
     expect(list.textContent).toContain('alice');
+
+    // Simulate upload flow: provide a fake image decode path
+    const fileEvent = { target: { files: [new Blob()] } };
+    global.fetch = jest.fn().mockResolvedValue({ ok: true, blob: () => Promise.resolve(new Blob()) });
+    global.createImageBitmap = jest.fn().mockResolvedValue({ width: 64, height: 48 });
+    await uploadHandler(fileEvent);
+    expect(fakeInstance.identifyFromCanvas).toHaveBeenCalled();
+
+    // Early return when no file selected
+    await uploadHandler({ target: { files: [] } });
+
+    // Error path: createImageBitmap fails
+    global.createImageBitmap = jest.fn().mockRejectedValue(new Error('decode fail'));
+    await uploadHandler({ target: { files: [new Blob()] } });
+    expect(fakeInstance.updateStatus).toHaveBeenCalledWith('decode fail');
   });
 
   test('bootstrap initializes models when autoInit is enabled', async () => {

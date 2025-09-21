@@ -332,3 +332,23 @@ A few risks to keep in mind:
 * **Alignment sensitivity:** Landmark mis-ordering or poor alignment quietly tanks accuracy—budget time for robust tests and visualization. ([GitHub](https://github.com/deepinsight/insightface/issues/1154?utm_source=chatgpt.com))
 
 * **WebGPU variability:** Some enterprise browsers disable it; ensure WASM performance is acceptable or you’ll see jank on mid-tier laptops. ([onnxruntime.ai](https://onnxruntime.ai/docs/tutorials/web/ep-webgpu.html))
+
+---
+
+## 16) Upload an image from disk
+
+In the demo UI (`index.html`), there’s an “Upload Image” control next to the Start/Identify/Enroll buttons. Select a single PNG/JPEG/WebP and the app will:
+
+- Decode the file locally (no network upload),
+- Run detection → alignment → embedding → matching once,
+- Draw the face box and 5 landmarks on the overlay,
+- List any matches in the sidebar.
+
+Implementation details:
+- UI is a hidden `<input id="upload" type="file" accept="image/*">` paired with a styled label.
+- The change handler in `src/index.js` decodes with `createImageBitmap(file)`, draws it to a temporary canvas, and calls `app.identifyFromCanvas(workCanvas)`.
+- Webcam flow remains unchanged — you can still enroll/identify from the camera.
+
+Extensions (future):
+- Allow selecting multiple files and process each sequentially.
+- Add drag-and-drop support by forwarding dropped files to the same handler.
