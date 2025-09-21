@@ -20,9 +20,27 @@ function canvasToCHWFloat32(canvas, { mean = 127.5, scale = 1 / 128 } = {}) {
   return tensor;
 }
 
+// Produce raw 0-255 RGB in CHW order for quantized models that accept uint8 input
+function canvasToCHWUint8(canvas) {
+  if (!canvas || typeof canvas.getContext !== 'function') {
+    throw new TypeError('A canvas element is required');
+  }
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  const { width, height } = canvas;
+  const { data } = ctx.getImageData(0, 0, width, height);
+  const size = width * height;
+  const tensor = new Uint8Array(3 * size);
+  for (let i = 0, p = 0; i < size; i += 1, p += 4) {
+    tensor[i] = data[p]; // R
+    tensor[i + size] = data[p + 1]; // G
+    tensor[i + 2 * size] = data[p + 2]; // B
+  }
+  return tensor;
+}
+
 function normalizeEmbedding(vectorLike) {
   const vector = Array.from(vectorLike);
   return l2Normalize(vector);
 }
 
-export { canvasToCHWFloat32, normalizeEmbedding };
+export { canvasToCHWFloat32, canvasToCHWUint8, normalizeEmbedding };

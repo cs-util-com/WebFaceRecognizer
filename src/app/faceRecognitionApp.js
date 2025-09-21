@@ -7,7 +7,7 @@ import {
   normalizeScrfdOutput,
 } from '../detection/scrfdDecoder.js';
 import { estimateSimilarityTransform } from '../alignment/transform.js';
-import { canvasToCHWFloat32, normalizeEmbedding } from '../preprocess/canvas.js';
+import { canvasToCHWFloat32, canvasToCHWUint8, normalizeEmbedding } from '../preprocess/canvas.js';
 import { FaceEmbeddingStore } from '../store/faceStore.js';
 import { loadOrtRuntime } from '../runtime/loadOrt.js';
 
@@ -33,10 +33,16 @@ class FaceRecognitionApp {
       runtimeLoader: loadOrtRuntime,
       store: new FaceEmbeddingStore(),
       detectorModelUrl: '/models/scrfd_2.5g_kps_640x640.onnx',
-      embedderModelUrl: '/models/arcface_r100.onnx',
+  // Default to INT8 ArcFace model; can be overridden via query params or config
+  embedderModelUrl: '/models/arcfaceresnet100-11-int8.onnx',
       detectorInputName: 'input',
-      embedderInputName: 'data',
-      embedderOutputName: 'fc1',
+  embedderInputName: 'data',
+  embedderOutputName: 'fc1',
+  // For INT8 model variants that accept uint8 input, allow choosing tensor type
+  embedderInputType: 'float32', // 'float32' | 'uint8'
+  // Normalization parameters for float32 preprocessing
+  normalizeMean: 127.5,
+  normalizeScale: 1 / 128,
       detectorInputSize: 640,
       alignedSize: 112,
       detectorStrides: [8, 16, 32],
@@ -55,8 +61,11 @@ class FaceRecognitionApp {
       detectorModelUrl,
       embedderModelUrl,
       detectorInputName,
-      embedderInputName,
+  embedderInputName,
       embedderOutputName,
+  embedderInputType,
+  normalizeMean,
+  normalizeScale,
       detectorInputSize,
       alignedSize,
       detectorStrides,
@@ -76,7 +85,10 @@ class FaceRecognitionApp {
     this.embedderModelUrl = embedderModelUrl;
     this.detectorInputName = detectorInputName;
     this.embedderInputName = embedderInputName;
-    this.embedderOutputName = embedderOutputName;
+  this.embedderOutputName = embedderOutputName;
+  this.embedderInputType = embedderInputType;
+  this.normalizeMean = normalizeMean;
+  this.normalizeScale = normalizeScale;
     this.detectorInputSize = detectorInputSize;
     this.alignedSize = alignedSize;
     this.detectorStrides = detectorStrides;
@@ -234,8 +246,14 @@ class FaceRecognitionApp {
   }
 
   async embedAlignedCanvas(alignedCanvas) {
-    const tensor = canvasToCHWFloat32(alignedCanvas);
-    const input = new this.ort.Tensor('float32', tensor, [1, 3, this.alignedSize, this.alignedSize]);
+    let input;
+    if (this.embedderInputType === 'uint8') {
+      const tensor = canvasToCHWUint8(alignedCanvas);
+      input = new this.ort.Tensor('uint8', tensor, [1, 3, this.alignedSize, this.alignedSize]);
+    } else {
+      const tensor = canvasToCHWFloat32(alignedCanvas, { mean: this.normalizeMean, scale: this.normalizeScale });
+      input = new this.ort.Tensor('float32', tensor, [1, 3, this.alignedSize, this.alignedSize]);
+    }
     const feeds = { [this.embedderInputName]: input };
     const output = await this.embedderSession.run(feeds);
     const rawEmbedding = output[this.embedderOutputName];

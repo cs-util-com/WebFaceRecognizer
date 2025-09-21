@@ -219,4 +219,26 @@ describe('FaceRecognitionApp', () => {
     const norm = Math.sqrt(embedding.reduce((sum, value) => sum + value * value, 0));
     expect(norm).toBeCloseTo(1, 5);
   });
+
+  test('embedAlignedCanvas uses uint8 tensor when configured', async () => {
+    const createCanvas = createCanvasFactory();
+    const app = new FaceRecognitionApp({ createCanvas, embedderInputType: 'uint8' });
+    class FakeTensorU8 {
+      constructor(type, data, dims) {
+        this.type = type; this.data = data; this.dims = dims;
+      }
+    }
+    app.ort = { Tensor: FakeTensorU8 };
+    const spyRun = jest.fn(async (feeds) => {
+      const key = Object.keys(feeds)[0];
+      expect(feeds[key].type).toBe('uint8');
+      return { [app.embedderOutputName]: { data: new Float32Array([0, 1, 0]) } };
+    });
+    app.embedderSession = { run: spyRun };
+    const aligned = createCanvas(app.alignedSize, app.alignedSize);
+    const embedding = await app.embedAlignedCanvas(aligned);
+    expect(spyRun).toHaveBeenCalled();
+    const maxIdx = embedding.indexOf(Math.max(...embedding));
+    expect(maxIdx).toBe(1);
+  });
 });

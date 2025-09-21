@@ -216,7 +216,7 @@ for (let i=0;i\<512;i++) v\[i\]\*=inv;
    `// Optionally set wasm paths if self-hosted under /ort`  
    `// ort.env.wasm.wasmPaths = '/ort/';`  
    `const scrfd = await ort.InferenceSession.create('/models/scrfd_2.5g_kps_640x640.onnx', {executionProviders:['webgpu']});`  
-   `const arc  = await ort.InferenceSession.create('/models/arcface_r100.onnx', {executionProviders:['webgpu']});`
+  `const arc  = await ort.InferenceSession.create('/models/arcfaceresnet100-11-int8.onnx', {executionProviders:['webgpu']});`
 
 5. **Detect** (SCRFD)  
    * Letterbox to 640×640; build `Tensor('float32',[1,3,640,640])`; run; decode per-stride outputs; NMS. Typical output bundle contains bboxes and 5 keypoints. [NVIDIA Developer Forums](https://forums.developer.nvidia.com/t/object-detection-pre-trained-model-inference-issue-in-deepstream/299427?utm_source=chatgpt.com)
@@ -226,6 +226,19 @@ for (let i=0;i\<512;i++) v\[i\]\*=inv;
 
 7. **Embed & compare**  
    * Preprocess (RGB CHW 112×112; `(x-127.5)/128`), run ArcFace, L2-normalize, cosine compare. (ArcFace ONNX shapes per OMZ docs.) [docs.openvino.ai](https://docs.openvino.ai/2023.3/omz_models_model_face_recognition_resnet100_arcface_onnx.html)
+
+### Using INT8 ArcFace in this repo
+
+This project defaults to the INT8 embedder model (`/models/arcfaceresnet100-11-int8.onnx`). Many INT8 exports accept `uint8` tensors; others still expect `float32` with normalization. You can control this via:
+
+- Query params: `?embedder=/models/arcfaceresnet100-11-int8.onnx&embedderInputType=uint8&embedderInputName=data&embedderOutputName=fc1`
+- Or in code: `new FaceRecognitionApp({ embedderModelUrl, embedderInputType: 'uint8', embedderInputName: 'data', embedderOutputName: 'fc1' })`
+
+If your INT8 model expects float inputs, keep `embedderInputType=float32` and optionally change normalization via `normalizeMean` and `normalizeScale`.
+
+Caveats:
+- Some quantized ops may not be accelerated by WebGPU; runtime may fall back to WASM EP.
+- Slight accuracy drop vs FP32 is common.
 
 8. **Calibrate a threshold**  
    * Capture a handful of positive/negative pairs from your camera and sweep thresholds to choose an operating point.

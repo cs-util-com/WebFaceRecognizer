@@ -252,6 +252,70 @@ describe('UI helpers', () => {
     expect(capturedConfig.embedderModelUrl).toBe(embedder);
   });
 
+  test('bootstrap applies advanced embedder overrides including types and normalization', async () => {
+    const params = new URLSearchParams({
+      embedder: '/models/int8.onnx',
+      embedderInputType: 'uint8',
+      embedderInputName: 'input0',
+      embedderOutputName: 'output0',
+      normalizeMean: '0',
+      normalizeScale: '0.5',
+    });
+    const stubDoc = {
+      getElementById: document.getElementById.bind(document),
+      location: { href: `https://example.test/?${params.toString()}` },
+    };
+
+    let capturedConfig;
+    global.__createFakeApp = (config) => {
+      capturedConfig = config;
+      return {
+        initialize: jest.fn(),
+        startCamera: jest.fn(),
+        enrollFromCanvas: jest.fn(),
+        identifyFromCanvas: jest.fn(),
+        captureVideoFrame: jest.fn(() => createCanvasStub(10, 10)),
+        updateStatus: jest.fn(),
+      };
+    };
+
+    await bootstrapFaceRecognitionApp({ documentRef: stubDoc, autoInit: false });
+    expect(capturedConfig.embedderModelUrl).toBe('/models/int8.onnx');
+    expect(capturedConfig.embedderInputType).toBe('uint8');
+    expect(capturedConfig.embedderInputName).toBe('input0');
+    expect(capturedConfig.embedderOutputName).toBe('output0');
+    expect(capturedConfig.normalizeMean).toBe(0);
+    expect(capturedConfig.normalizeScale).toBe(0.5);
+  });
+
+  test('bootstrap ignores invalid normalization numbers', async () => {
+    const params = new URLSearchParams({
+      normalizeMean: 'NaN',
+      normalizeScale: 'foo',
+    });
+    const stubDoc = {
+      getElementById: document.getElementById.bind(document),
+      location: { href: `https://example.test/?${params.toString()}` },
+    };
+
+    let capturedConfig;
+    global.__createFakeApp = (config) => {
+      capturedConfig = config;
+      return {
+        initialize: jest.fn(),
+        startCamera: jest.fn(),
+        enrollFromCanvas: jest.fn(),
+        identifyFromCanvas: jest.fn(),
+        captureVideoFrame: jest.fn(() => createCanvasStub(10, 10)),
+        updateStatus: jest.fn(),
+      };
+    };
+
+    await bootstrapFaceRecognitionApp({ documentRef: stubDoc, autoInit: false });
+    expect(capturedConfig.normalizeMean).toBeUndefined();
+    expect(capturedConfig.normalizeScale).toBeUndefined();
+  });
+
   test('bootstrap ignores invalid document URL gracefully', async () => {
     const stubDoc = {
       getElementById: document.getElementById.bind(document),

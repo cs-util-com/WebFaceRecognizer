@@ -105,8 +105,24 @@ async function bootstrapFaceRecognitionApp({ documentRef = document, autoInit = 
     const params = new URL(href).searchParams;
     const detectorOverride = params.get('detector');
     const embedderOverride = params.get('embedder');
+    const embedderInputType = params.get('embedderInputType'); // 'float32' | 'uint8'
+    const embedderInputName = params.get('embedderInputName');
+    const embedderOutputName = params.get('embedderOutputName');
+    const normalizeMean = params.get('normalizeMean');
+    const normalizeScale = params.get('normalizeScale');
     if (detectorOverride) config.detectorModelUrl = detectorOverride;
     if (embedderOverride) config.embedderModelUrl = embedderOverride;
+    if (embedderInputType) config.embedderInputType = embedderInputType;
+    if (embedderInputName) config.embedderInputName = embedderInputName;
+    if (embedderOutputName) config.embedderOutputName = embedderOutputName;
+    if (normalizeMean !== null) {
+      const v = Number(normalizeMean);
+      if (!Number.isNaN(v)) config.normalizeMean = v;
+    }
+    if (normalizeScale !== null) {
+      const v = Number(normalizeScale);
+      if (!Number.isNaN(v)) config.normalizeScale = v;
+    }
   } catch {
     // ignore URL parsing errors in non-browser contexts
   }
