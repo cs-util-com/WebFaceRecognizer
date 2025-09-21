@@ -149,4 +149,48 @@ describe('UI helpers', () => {
     const app = await bootstrapFaceRecognitionApp({ documentRef: document });
     expect(app.initialize).toHaveBeenCalled();
   });
+
+  test('bootstrap applies model URL overrides from query params', async () => {
+    const detector = '/models/override-det.onnx';
+    const embedder = '/models/override-emb.onnx';
+    const stubDoc = {
+      getElementById: document.getElementById.bind(document),
+      location: { href: `https://example.test/?detector=${encodeURIComponent(detector)}&embedder=${encodeURIComponent(embedder)}` },
+    };
+
+    let capturedConfig;
+    global.__createFakeApp = (config) => {
+      capturedConfig = config;
+      return {
+        initialize: jest.fn(),
+        startCamera: jest.fn(),
+        enrollFromCanvas: jest.fn(),
+        identifyFromCanvas: jest.fn(),
+        captureVideoFrame: jest.fn(() => createCanvasStub(10, 10)),
+        updateStatus: jest.fn(),
+      };
+    };
+
+    await bootstrapFaceRecognitionApp({ documentRef: stubDoc, autoInit: false });
+    expect(capturedConfig.detectorModelUrl).toBe(detector);
+    expect(capturedConfig.embedderModelUrl).toBe(embedder);
+  });
+
+  test('bootstrap ignores invalid document URL gracefully', async () => {
+    const stubDoc = {
+      getElementById: document.getElementById.bind(document),
+      location: { href: 'not a url' },
+    };
+
+    global.__createFakeApp = () => ({
+      initialize: jest.fn(),
+      startCamera: jest.fn(),
+      enrollFromCanvas: jest.fn(),
+      identifyFromCanvas: jest.fn(),
+      captureVideoFrame: jest.fn(() => createCanvasStub(10, 10)),
+      updateStatus: jest.fn(),
+    });
+
+    await expect(bootstrapFaceRecognitionApp({ documentRef: stubDoc, autoInit: false })).resolves.toBeDefined();
+  });
 });

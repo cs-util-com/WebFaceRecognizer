@@ -74,7 +74,10 @@ async function loadOrtRuntime(options = {}) {
   const dynamicImport = importer || ((specifier) => import(specifier));
   const errors = [];
 
-  const requestAdapter = navigatorLike && navigatorLike.gpu && navigatorLike.gpu.requestAdapter;
+  // Ensure requestAdapter is bound to the GPU object to prevent Illegal invocation
+  const requestAdapter = (navigatorLike && navigatorLike.gpu && typeof navigatorLike.gpu.requestAdapter === 'function')
+    ? navigatorLike.gpu.requestAdapter.bind(navigatorLike.gpu)
+    : undefined;
 
   if (preferWebGPU) {
     if (typeof console !== 'undefined' && console.debug) {

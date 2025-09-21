@@ -97,6 +97,20 @@ async function handleEnroll(app, overlayCanvas, resultsList, identityInput) {
 
 async function bootstrapFaceRecognitionApp({ documentRef = document, autoInit = true } = {}) {
   const config = createDefaultAppConfig(documentRef);
+
+  // Optional: allow overriding model URLs via query parameters
+  // ?detector=/models/scrfd_2.5g_kps_640x640.onnx&embedder=/models/arcface_r100.onnx
+  try {
+    const href = (documentRef && documentRef.location && documentRef.location.href) || '';
+    const params = new URL(href).searchParams;
+    const detectorOverride = params.get('detector');
+    const embedderOverride = params.get('embedder');
+    if (detectorOverride) config.detectorModelUrl = detectorOverride;
+    if (embedderOverride) config.embedderModelUrl = embedderOverride;
+  } catch {
+    // ignore URL parsing errors in non-browser contexts
+  }
+
   const app = new FaceRecognitionApp(config);
   if (autoInit) {
     await app.initialize();

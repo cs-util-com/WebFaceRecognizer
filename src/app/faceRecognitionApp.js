@@ -132,14 +132,24 @@ class FaceRecognitionApp {
     if (typeof console !== 'undefined' && console.time) {
       console.time('[FaceRecognitionApp] create detector session');
     }
-    this.detectorSession = await this.ort.InferenceSession.create(this.detectorModelUrl, sessionOptions);
+    try {
+      this.detectorSession = await this.ort.InferenceSession.create(this.detectorModelUrl, sessionOptions);
+    } catch (e) {
+      const hint = `Failed to load detector model at ${this.detectorModelUrl}. Ensure the file exists and is served from the same origin (e.g., place it under /models).`;
+      throw new Error(e && e.message ? `${e.message}`.includes('failed to load external data file') ? `${hint}` : `${hint}\n${e.message}` : hint);
+    }
     if (typeof console !== 'undefined' && console.timeEnd) {
       console.timeEnd('[FaceRecognitionApp] create detector session');
     }
     if (typeof console !== 'undefined' && console.time) {
       console.time('[FaceRecognitionApp] create embedder session');
     }
-    this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, sessionOptions);
+    try {
+      this.embedderSession = await this.ort.InferenceSession.create(this.embedderModelUrl, sessionOptions);
+    } catch (e) {
+      const hint = `Failed to load embedder model at ${this.embedderModelUrl}. Ensure the file exists and is served from the same origin (e.g., place it under /models).`;
+      throw new Error(e && e.message ? `${hint}\n${e.message}` : hint);
+    }
     if (typeof console !== 'undefined' && console.timeEnd) {
       console.timeEnd('[FaceRecognitionApp] create embedder session');
     }
