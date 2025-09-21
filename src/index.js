@@ -20,13 +20,21 @@ function createDefaultAppConfig(documentRef = document) {
   };
 }
 
-function drawDetections(canvas, detections, matches = []) {
+function drawDetections(canvas, detections, matches = [], options = {}) {
   if (!canvas) {
     return;
   }
   const ctx = canvas.getContext('2d');
   const { width, height } = canvas;
   ctx.clearRect(0, 0, width, height);
+  // Optionally draw a background image/canvas to show the source frame
+  if (options.background) {
+    try {
+      ctx.drawImage(options.background, 0, 0, width, height);
+    } catch {
+      // ignore if drawImage fails for non-canvas/image inputs
+    }
+  }
   detections.forEach((det, index) => {
     const [x1, y1, x2, y2] = det.bbox;
     ctx.strokeStyle = 'rgba(59, 130, 246, 0.9)';
@@ -71,7 +79,7 @@ async function handleIdentify(app, overlayCanvas, resultsList) {
   overlayCanvas.width = frame.width;
   overlayCanvas.height = frame.height;
   const matches = await app.identifyFromCanvas(frame);
-  drawDetections(overlayCanvas, matches.map((m) => m.detection), matches);
+  drawDetections(overlayCanvas, matches.map((m) => m.detection), matches, { background: frame });
   renderMatchList(resultsList, matches);
 }
 
@@ -180,12 +188,19 @@ async function bootstrapFaceRecognitionApp({ documentRef = document, autoInit = 
       // Resize overlay to match and run identify on this static frame
       overlayCanvas.width = workCanvas.width;
       overlayCanvas.height = workCanvas.height;
+      // Show the uploaded image immediately in the UI
+      drawDetections(overlayCanvas, [], [], { background: workCanvas });
       const matches = await app.identifyFromCanvas(workCanvas);
-      drawDetections(overlayCanvas, matches.map((m) => m.detection), matches);
+      drawDetections(overlayCanvas, matches.map((m) => m.detection), matches, { background: workCanvas });
       renderMatchList(resultsList, matches);
       app.updateStatus(`Processed uploaded image (${workCanvas.width}×${workCanvas.height})`);
     } catch (err) {
-      app.updateStatus(err && err.message ? err.message : String(err));
+      // Surface a friendlier error for common ONNX feed-name issues
+      const msg = err && err.message ? String(err.message) : String(err);
+      const friendly = /is missing in 'feeds'/.test(msg)
+        ? 'The selected model expected a different input name. Try reloading with the correct input name via URL params (e.g., ?embedderInputName=input.1) or update configuration.'
+        : msg;
+      app.updateStatus(friendly);
     } finally {
       // reset so selecting the same file again re-triggers change
       e.target.value = '';

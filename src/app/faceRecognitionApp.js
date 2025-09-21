@@ -214,6 +214,100 @@ class FaceRecognitionApp {
         console.timeEnd('[FaceRecognitionApp] create embedder session');
       }
     }
+
+    // Try to auto-detect IO names from the sessions to avoid common "input X is missing in feeds" errors
+    this.applyAutoIoNames();
+  }
+
+  // Derive input names from an ORT session if available
+  /* istanbul ignore next */
+  getSessionInputNames(session) {
+    if (!session) return [];
+    if (Array.isArray(session.inputNames) && session.inputNames.length) return [...session.inputNames];
+    if (session.inputMetadata && typeof session.inputMetadata === 'object') {
+      try { return Object.keys(session.inputMetadata); } catch { /* noop */ }
+    }
+    return [];
+  }
+
+  // Derive output names from an ORT session if available
+  /* istanbul ignore next */
+  getSessionOutputNames(session) {
+    if (!session) return [];
+    if (Array.isArray(session.outputNames) && session.outputNames.length) return [...session.outputNames];
+    if (session.outputMetadata && typeof session.outputMetadata === 'object') {
+      try { return Object.keys(session.outputMetadata); } catch { /* noop */ }
+    }
+    return [];
+  }
+
+  /* istanbul ignore next */
+  applyAutoIoNames() {
+    try {
+      const detInputs = this.getSessionInputNames(this.detectorSession);
+      if (detInputs.length) {
+        if (!detInputs.includes(this.detectorInputName)) {
+          // If there's a single candidate, adopt it automatically
+          if (detInputs.length === 1) {
+            if (typeof console !== 'undefined' && console.info) {
+              console.info(`[FaceRecognitionApp] Auto-selected detector input name: ${detInputs[0]} (was ${this.detectorInputName})`);
+            }
+            this.detectorInputName = detInputs[0];
+          } else if (typeof console !== 'undefined' && console.warn) {
+            console.warn(`[FaceRecognitionApp] Detector input name "${this.detectorInputName}" not found. Candidates: ${detInputs.join(', ')}`);
+          }
+        }
+      }
+
+      const embInputs = this.getSessionInputNames(this.embedderSession);
+      if (embInputs.length) {
+        if (!embInputs.includes(this.embedderInputName)) {
+          if (embInputs.length === 1) {
+            if (typeof console !== 'undefined' && console.info) {
+              console.info(`[FaceRecognitionApp] Auto-selected embedder input name: ${embInputs[0]} (was ${this.embedderInputName})`);
+            }
+            this.embedderInputName = embInputs[0];
+          } else if (typeof console !== 'undefined' && console.warn) {
+            console.warn(`[FaceRecognitionApp] Embedder input name "${this.embedderInputName}" not found. Candidates: ${embInputs.join(', ')}`);
+          }
+        }
+      }
+
+      const embOutputs = this.getSessionOutputNames(this.embedderSession);
+      if (embOutputs.length) {
+        if (!embOutputs.includes(this.embedderOutputName)) {
+          if (embOutputs.length === 1) {
+            if (typeof console !== 'undefined' && console.info) {
+              console.info(`[FaceRecognitionApp] Auto-selected embedder output name: ${embOutputs[0]} (was ${this.embedderOutputName})`);
+            }
+            this.embedderOutputName = embOutputs[0];
+          } else if (typeof console !== 'undefined' && console.warn) {
+            console.warn(`[FaceRecognitionApp] Embedder output name "${this.embedderOutputName}" not found. Candidates: ${embOutputs.join(', ')}`);
+          }
+        }
+      }
+    } catch (e) {
+      if (typeof console !== 'undefined' && console.debug) {
+        console.debug('[FaceRecognitionApp] IO auto-detect skipped:', e && e.message ? e.message : e);
+      }
+    }
+  }
+
+  buildFeedsSafe(name, tensor) {
+    const feeds = {};
+    feeds[name] = tensor;
+    return feeds;
+  }
+
+  /* istanbul ignore next */
+  friendlyOrtFeedsError(err, session, usedName, label) {
+    const msg = err && err.message ? String(err.message) : '';
+    if (/is missing in 'feeds'/.test(msg)) {
+      const expected = this.getSessionInputNames(session);
+      const expectedStr = expected.length ? expected.join(', ') : 'unknown';
+      return `The ${label} model expected input name(s): ${expectedStr}, but the app sent "${usedName}". This usually means your ONNX file uses a different input name (e.g., "input.1"). Fix: reload with ?${label}InputName=<name> or update the configuration.`;
+    }
+    return msg || String(err);
   }
 
   async startCamera(constraints = { video: { width: 1280, height: 720 } }) {
@@ -264,8 +358,13 @@ class FaceRecognitionApp {
 
   async detectFacesFromCanvas(canvas) {
     const { input, letterboxMeta } = this.prepareDetectorInput(canvas);
-    const feeds = { [this.detectorInputName]: input };
-    const outputMap = await this.detectorSession.run(feeds);
+    const feeds = this.buildFeedsSafe(this.detectorInputName, input);
+    let outputMap;
+    try {
+      outputMap = await this.detectorSession.run(feeds);
+    } catch (e) {
+      throw new Error(this.friendlyOrtFeedsError(e, this.detectorSession, this.detectorInputName, 'detector'));
+    }
     const normalized = normalizeScrfdOutput(outputMap, this.detectorStrides);
     const decoded = decodeScrfdOutputs(normalized, {
       inputSize: this.detectorInputSize,
@@ -303,8 +402,13 @@ class FaceRecognitionApp {
       const tensor = canvasToCHWFloat32(alignedCanvas, { mean: this.normalizeMean, scale: this.normalizeScale });
       input = new this.ort.Tensor('float32', tensor, [1, 3, this.alignedSize, this.alignedSize]);
     }
-    const feeds = { [this.embedderInputName]: input };
-    const output = await this.embedderSession.run(feeds);
+    const feeds = this.buildFeedsSafe(this.embedderInputName, input);
+    let output;
+    try {
+      output = await this.embedderSession.run(feeds);
+    } catch (e) {
+      throw new Error(this.friendlyOrtFeedsError(e, this.embedderSession, this.embedderInputName, 'embedder'));
+    }
     const rawEmbedding = output[this.embedderOutputName];
     const data = rawEmbedding.data || rawEmbedding;
     return normalizeEmbedding(data);
